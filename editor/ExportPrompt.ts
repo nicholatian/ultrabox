@@ -315,7 +315,7 @@ export class ExportPrompt implements Prompt {
         this.currentChunk = 0;
         this.synth = new Synth(this._doc.song);
         if (type == "wav") {
-            this.synth.samplesPerSecond = 48000; // Use professional video editing standard sample rate for .wav file export.
+            this.synth.samplesPerSecond = 96000; // Use professional video editing standard sample rate for .wav file export.
         }
         else if (type == "mp3") {
             this.synth.samplesPerSecond = 44100; // Use consumer CD standard sample rate for .mp3 export.
@@ -334,13 +334,13 @@ export class ExportPrompt implements Prompt {
             }
         }
 
-      
+
         this.synth.initModFilters(this._doc.song);
         this.synth.computeLatestModValues();
 	    this.synth.warmUpSynthesizer(this._doc.song);
 
         this.sampleFrames = this.synth.getTotalSamples(this._enableIntro.checked, this._enableOutro.checked, this.synth.loopRepeatCount);
-        // Compute how many UI updates will need to run to determine how many 
+        // Compute how many UI updates will need to run to determine how many
         this.totalChunks = Math.ceil(this.sampleFrames / (this.synth.samplesPerSecond * 5));
         this.recordedSamplesL = new Float32Array(this.sampleFrames);
         this.recordedSamplesR = new Float32Array(this.sampleFrames);
@@ -354,7 +354,7 @@ export class ExportPrompt implements Prompt {
         const sampleRate: number = this.synth.samplesPerSecond;
 
         const wavChannelCount: number = 2;
-        const bytesPerSample: number = 2;
+        const bytesPerSample: number = 4;
         const bitsPerSample: number = 8 * bytesPerSample;
         const sampleCount: number = wavChannelCount * sampleFrames;
 
@@ -378,7 +378,7 @@ export class ExportPrompt implements Prompt {
         data.setUint32(index, sampleCount * bytesPerSample, true); index += 4;
 
         if (bytesPerSample > 1) {
-            // usually samples are signed. 
+            // usually samples are signed.
             const range: number = (1 << (bitsPerSample - 1)) - 1;
             for (let i: number = 0; i < sampleFrames; i++) {
                 let valL: number = Math.floor(Math.max(-1, Math.min(1, this.recordedSamplesL[i])) * range);
@@ -614,7 +614,7 @@ export class ExportPrompt implements Prompt {
                         writer.writeMidiAscii("Instrument " + (instrumentIndex + 1));
 
                         if (!isDrumset) {
-                            let instrumentProgram: number = 81; // default to sawtooth wave. 
+                            let instrumentProgram: number = 81; // default to sawtooth wave.
 
                             if (preset != null && preset.midiProgram != undefined) {
                                 instrumentProgram = preset.midiProgram;
@@ -708,7 +708,7 @@ export class ExportPrompt implements Prompt {
                             const toneCount: number = Math.min(polyphony, note.pitches.length);
                             const velocity: number = isDrumset ? Math.max(1, Math.round(defaultNoteVelocity * note.pins[0].size / Config.noteSizeMax)) : defaultNoteVelocity;
 
-                            // The maximum midi pitch bend range is +/- 24 semitones from the base pitch. 
+                            // The maximum midi pitch bend range is +/- 24 semitones from the base pitch.
                             // To make the most of this, choose a base pitch that is within 24 semitones from as much of the note as possible.
                             // This may involve offsetting this base pitch from BeepBox's note pitch.
                             let mainInterval: number = note.pickMainInterval();
@@ -834,7 +834,7 @@ export class ExportPrompt implements Prompt {
                             }
 
 							const noteEndTime: number = barStartTime + note.end * midiTicksPerPart;
-							
+
 							// End all tones.
 							for (let toneIndex: number = 0; toneIndex < toneCount; toneIndex++) {
 								// TODO: If the note at the start of the next pattern has
@@ -845,20 +845,20 @@ export class ExportPrompt implements Prompt {
 								writer.writeMidi7Bits(prevPitches[toneIndex]); // pitch
 								writer.writeMidi7Bits(velocity); // velocity
 							}
-							
+
 							shouldResetExpressionAndPitchBend = true;
 						}
 					} else {
 						if (shouldResetExpressionAndPitchBend) {
 							shouldResetExpressionAndPitchBend = false;
-							
+
 							if (prevExpression != defaultMidiExpression) {
 								prevExpression = defaultMidiExpression;
 								// Reset expression
 								writeEventTime(barStartTime);
 								writeControlEvent(MidiControlEventMessage.expressionMSB, prevExpression);
 							}
-						
+
 							if (prevPitchBend != defaultMidiPitchBend) {
 								// Reset pitch bend
 								prevPitchBend = defaultMidiPitchBend;
@@ -869,26 +869,26 @@ export class ExportPrompt implements Prompt {
 							}
 						}
 					}
-					
+
 					barStartTime += midiTicksPerBar;
 				}
 			}
-			
+
 			writeEventTime(barStartTime);
 			writer.writeUint8(MidiEventType.meta);
 			writer.writeMidi7Bits(MidiMetaEventMessage.endOfTrack);
 			writer.writeMidiVariableLength(0x00);
-			
+
 			// Finally, write the length of the track in bytes at the front of the track.
 			writer.rewriteUint32(trackStartIndex, writer.getWriteIndex() - trackStartIndex - 4);
 		}
-		
+
 		const blob: Blob = new Blob([writer.toCompactArrayBuffer()], {type: "audio/midi"});
 		save(blob, this._fileName.value.trim() + ".mid");
-		
+
 		this._close();
 	}
-	
+
 	private _exportToJson(): void {
 		const jsonObject: Object = this._doc.song.toJsonObject(this._enableIntro.checked, Number(this._loopDropDown.value), this._enableOutro.checked);
         let whiteSpaceParam: string | undefined = this._removeWhitespace.checked ? undefined : '\t';
